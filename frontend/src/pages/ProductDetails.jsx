@@ -15,6 +15,7 @@ const ProductDetails = () => {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [loadingStoreUrl, setLoadingStoreUrl] = useState(false);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -48,6 +49,46 @@ const ProductDetails = () => {
 
     fetchProduct();
   }, [id]);
+
+  const handleViewStore = async () => {
+    if (loadingStoreUrl) return;
+
+    try {
+      setLoadingStoreUrl(true);
+
+      const response = await fetch(
+        `${API_URL}/api/products/${id}/store-url`
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to get store URL");
+      }
+
+      const data = await response.json();
+
+      if (data.url) {
+        window.open(
+          data.url,
+          "_blank",
+          "noopener,noreferrer"
+        );
+      } else {
+        throw new Error("Store URL not available");
+      }
+    } catch (error) {
+      console.error("Store URL error:", error);
+
+      if (product?.url) {
+        window.open(
+          product.url,
+          "_blank",
+          "noopener,noreferrer"
+        );
+      }
+    } finally {
+      setLoadingStoreUrl(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -258,14 +299,25 @@ const ProductDetails = () => {
             </div>
 
             {/* Store Button */}
-            <a
-              href="#"
-              className="group mt-8 flex items-center justify-center gap-2 rounded-xl bg-[#111111] px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-black/10 transition-all duration-300 hover:bg-black hover:shadow-xl hover:shadow-black/15"
+            <button
+              type="button"
+              onClick={handleViewStore}
+              disabled={loadingStoreUrl}
+              className="group mt-8 flex items-center justify-center gap-2 rounded-xl bg-[#111111] px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-black/10 transition-all duration-300 hover:bg-black hover:shadow-xl hover:shadow-black/15 disabled:cursor-wait disabled:opacity-60"
             >
-              View on {product.store}
+              {loadingStoreUrl ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  Opening {product.store}...
+                </>
+              ) : (
+                <>
+                  View on {product.store}
 
-              <ExternalLink className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-            </a>
+                  <ExternalLink className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                </>
+              )}
+            </button>
 
           </div>
         </section>

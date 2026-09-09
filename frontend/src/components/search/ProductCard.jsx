@@ -5,9 +5,14 @@ import {
   Trophy,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 const ProductCard = ({ product }) => {
   const navigate = useNavigate();
+
+  const [loadingStoreUrl, setLoadingStoreUrl] = useState(false);
 
   const {
     id,
@@ -22,6 +27,58 @@ const ProductCard = ({ product }) => {
 
   const handleViewComparison = () => {
     navigate(`/product/${id}`);
+  };
+
+  const handleViewStore = async () => {
+    console.log("VIEW STORE CLICKED", id);
+    if (loadingStoreUrl) return;
+
+    console.log("STORE BUTTON CLICKED");
+    console.log("Product ID:", id);
+    console.log("API URL:", `${API_URL}/api/products/${id}/store-url`);
+
+    try {
+      setLoadingStoreUrl(true);
+
+      const response = await fetch(
+        `${API_URL}/api/products/${id}/store-url`
+      );
+
+      console.log("Store URL response status:", response.status);
+
+      if (!response.ok) {
+        throw new Error(
+          `Store URL request failed with status ${response.status}`
+        );
+      }
+
+      const data = await response.json();
+
+      console.log("Store URL response:", data);
+
+      if (!data.url) {
+        throw new Error("No store URL returned by backend");
+      }
+
+      console.log("Opening store:", data.url);
+
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("Store URL error:", error);
+
+      // Fallback to the URL already stored on the product.
+      if (product.url) {
+        console.log("Using fallback product URL:", product.url);
+
+        window.open(
+          product.url,
+          "_blank",
+          "noopener,noreferrer"
+        );
+      }
+    } finally {
+      setLoadingStoreUrl(false);
+    }
   };
 
   const discount =
@@ -149,14 +206,21 @@ const ProductCard = ({ product }) => {
         {/* Actions */}
         <div className="mt-6 flex items-center gap-3">
 
-          {/* External Link */}
-          <a
-            href="#"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-black/10 bg-white/40 text-black/50 transition-all duration-300 hover:border-black/20 hover:bg-white hover:text-black"
-            aria-label={`View ${identity.name}`}
+          {/* External Store Link */}
+          <button
+            type="button"
+            onClick={handleViewStore}
+            disabled={loadingStoreUrl}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-black/10 bg-white/40 text-black/50 transition-all duration-300 hover:border-black/20 hover:bg-white hover:text-black disabled:cursor-wait disabled:opacity-50"
+            aria-label={`View ${identity.name} on ${store}`}
+            title={`View on ${store}`}
           >
-            <ExternalLink className="h-4 w-4" />
-          </a>
+            {loadingStoreUrl ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/20 border-t-black" />
+            ) : (
+              <ExternalLink className="h-4 w-4" />
+            )}
+          </button>
 
           {/* View Comparison */}
           <button

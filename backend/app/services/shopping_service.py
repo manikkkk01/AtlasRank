@@ -1,6 +1,7 @@
 import os
 import math
 import requests
+from urllib.parse import parse_qs, unquote, urlparse
 from dotenv import load_dotenv
 
 
@@ -19,6 +20,39 @@ def calculate_review_score(reviews):
         return 0
 
     return min(math.log10(reviews + 1) / 5 * 100, 100)
+
+
+def extract_product_url(item):
+    """
+    Extract the original merchant/product URL from a
+    Google Shopping result.
+
+    Uses a direct merchant URL when available.
+    Falls back to Google's Shopping link otherwise.
+    """
+
+    # Direct merchant URL, if SerpApi provides one.
+    direct_link = item.get("direct_link")
+
+    if direct_link:
+        return direct_link
+
+    # Older/alternative SerpApi link format.
+    link = item.get("link")
+
+    if link:
+        parsed_url = urlparse(link)
+        query_params = parse_qs(parsed_url.query)
+
+        merchant_url = query_params.get("url")
+
+        if merchant_url:
+            return unquote(merchant_url[0])
+
+        return link
+
+    # Current Google Shopping result format.
+    return item.get("product_link", "")
 
 
 def search_shopping_products(query: str):
@@ -45,11 +79,10 @@ def search_shopping_products(query: str):
 
     print("RAW SERPAPI RESULTS:", len(raw_products))
 
-    # --------------------------------------------------
-    # Filter irrelevant products
-    # --------------------------------------------------
-
-    
+    # DEBUG: inspect the actual SerpApi result
+    if raw_products:
+        print("FIRST RAW PRODUCT:")
+        print(raw_products[0])
 
     # --------------------------------------------------
     # Find price range
@@ -76,6 +109,12 @@ def search_shopping_products(query: str):
         price = item.get("extracted_price") or 0
         rating = item.get("rating") or 0
         reviews = item.get("reviews") or 0
+
+        # -----------------------------
+        # Product URL
+        # -----------------------------
+
+        product_url = extract_product_url(item)
 
         # -----------------------------
         # Rating score
@@ -147,6 +186,18 @@ def search_shopping_products(query: str):
 
             "store": item.get("source", ""),
 
+            "url": product_url,
+
+            # Used later to retrieve the actual
+            # merchant URL from the Immersive Product API.
+            "immersive_product_api": item.get(
+                "serpapi_immersive_product_api"
+            ),
+
+            "immersive_product_page_token": item.get(
+                "immersive_product_page_token"
+            ),
+
             "pricing": {
                 "current": price,
                 "original": item.get("extracted_old_price"),
@@ -178,7 +229,7 @@ def search_shopping_products(query: str):
 
         best_overall = max(
             products,
-            key=lambda product: product["score"]
+            key=lambda product: product["score"],
         )
 
         best_overall["badge"] = "Best Overall"
@@ -198,10 +249,9 @@ def search_shopping_products(query: str):
 
             best_value = max(
                 value_products,
-                key=lambda product: product["value_score"]
+                key=lambda product: product["value_score"],
             )
 
-            # Don't overwrite Best Overall
             if best_value["id"] != best_overall["id"]:
                 best_value["badge"] = "Best Value"
 
@@ -221,11 +271,10 @@ def search_shopping_products(query: str):
                 rated_products,
                 key=lambda product: (
                     product["rating"]["value"],
-                    product["rating"]["reviews"]
-                )
+                    product["rating"]["reviews"],
+                ),
             )
 
-            # Don't overwrite an existing badge
             if highest_rated["badge"] is None:
                 highest_rated["badge"] = "Highest Rated"
 

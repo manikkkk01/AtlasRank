@@ -15,13 +15,11 @@ def get_all_products():
 
 
 def get_product_by_id(product_id: str):
-    # First check recently searched SerpApi products
     product = product_cache.get(str(product_id))
 
     if product:
         return product
 
-    # Fallback to MongoDB products
     product = products_collection.find_one(
         {"id": product_id},
         {"_id": 0},
@@ -49,8 +47,9 @@ def get_product_store_url(product_id: str):
 
     immersive_api_url = product.get("immersive_product_api")
 
+    # No Immersive API available.
     if not immersive_api_url:
-        return product.get("url")
+        return None
 
     try:
         response = requests.get(
@@ -58,69 +57,51 @@ def get_product_store_url(product_id: str):
             params={
                 "api_key": os.getenv("SERPAPI_KEY"),
             },
-            timeout=20,
+            timeout=(10, 30),
         )
 
         response.raise_for_status()
 
         data = response.json()
 
-        print(
-            "IMMERSIVE API STATUS:",
-            data.get("search_metadata", {}).get("status"),
+        product_results = data.get(
+            "product_results",
+            {},
         )
 
-        print(
-            "IMMERSIVE API ERROR:",
-            data.get("error"),
+        stores = product_results.get(
+            "stores",
+            [],
         )
 
-        print(
-            "PRODUCT RESULTS:",
-            data.get("product_results"),
-        )
-
-        print(
-            "SELLERS RESULTS:",
-            data.get("sellers_results"),
-        )
+        target_store = (
+            product.get("store") or ""
+        ).strip().lower()
 
         # --------------------------------------------------
-        # Method 1: Current Immersive Product store results
+        # 1. Match the exact merchant
         # --------------------------------------------------
 
-        product_results = data.get("product_results", {})
-        stores = product_results.get("stores", [])
-
-        if stores:
+        for store in stores:
             store_name = (
-                product.get("store") or ""
-            ).lower()
+                store.get("name") or ""
+            ).strip().lower()
 
-            # First try to find the exact store.
-            for store in stores:
-                current_store_name = (
-                    store.get("name") or ""
-                ).lower()
+            store_link = store.get("link")
 
-                if (
-                    store_name
-                    and store_name in current_store_name
-                ):
-                    store_link = store.get("link")
-
-                    if store_link:
-                        return store_link
-
-            # Fallback: first store with a product link.
-            for store in stores:
-                store_link = store.get("link")
-
-                if store_link:
-                    return store_link
+            if (
+                target_store
+                and store_name
+                and target_store in store_name
+                and store_link
+                and not store_link.startswith(
+                    "https://www.google.com/"
+                )
+            ):
+                return store_link
 
         # --------------------------------------------------
-        # Method 2: Sellers results
+        # 2. Search seller results
         # --------------------------------------------------
 
         sellers_results = data.get(
@@ -133,55 +114,87 @@ def get_product_store_url(product_id: str):
             [],
         )
 
-        if online_sellers:
-            store_name = (
-                product.get("store") or ""
-            ).lower()
+        for seller in online_sellers:
+            seller_name = (
+                seller.get("name") or ""
+            ).strip().lower()
 
-            # First try matching the current store.
-            for seller in online_sellers:
-                seller_name = (
-                    seller.get("name") or ""
-                ).lower()
+            direct_link = seller.get(
+                "direct_link"
+            )
+
+            seller_link = seller.get(
+                "link"
+            )
+
+            if target_store and target_store in seller_name:
 
                 if (
-                    store_name
-                    and store_name in seller_name
-                ):
-                    direct_link = seller.get(
-                        "direct_link"
+                    direct_link
+                    and not direct_link.startswith(
+                        "https://www.google.com/"
                     )
-
-                    if direct_link:
-                        return direct_link
-
-                    seller_link = seller.get("link")
-
-                    if seller_link:
-                        return seller_link
-
-            # Fallback to the first seller with a usable URL.
-            for seller in online_sellers:
-                direct_link = seller.get(
-                    "direct_link"
-                )
-
-                if direct_link:
+                ):
                     return direct_link
 
-                seller_link = seller.get("link")
-
-                if seller_link:
+                if (
+                    seller_link
+                    and not seller_link.startswith(
+                        "https://www.google.com/"
+                    )
+                ):
                     return seller_link
 
         # --------------------------------------------------
-        # Method 3: Direct product link in response
+        # 3. Any non-Google merchant store link
         # --------------------------------------------------
 
-        product_link = data.get("product_link")
+        for store in stores:
+            store_link = store.get("link")
 
-        if product_link:
-            return product_link
+            if (
+                store_link
+                and not store_link.startswith(
+                    "https://www.google.com/"
+                )
+            ):
+                return store_link
+
+        # --------------------------------------------------
+        # 4. Any non-Google seller link
+        # --------------------------------------------------
+
+        for seller in online_sellers:
+            direct_link = seller.get(
+                "direct_link"
+            )
+
+            seller_link = seller.get(
+                "link"
+            )
+
+            if (
+                direct_link
+                and not direct_link.startswith(
+                    "https://www.google.com/"
+                )
+            ):
+                return direct_link
+
+            if (
+                seller_link
+                and not seller_link.startswith(
+                    "https://www.google.com/"
+                )
+            ):
+                return seller_link
+
+        # --------------------------------------------------
+        # IMPORTANT:
+        # Never return the Google Shopping URL.
+        # --------------------------------------------------
+
+        return None
 
     except requests.RequestException as error:
         print(
@@ -189,5 +202,4 @@ def get_product_store_url(product_id: str):
             error,
         )
 
-    # Final fallback.
-    return product.get("url")
+        return None

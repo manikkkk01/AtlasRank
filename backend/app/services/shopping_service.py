@@ -68,7 +68,7 @@ def search_shopping_products(query: str):
     response = requests.get(
         "https://serpapi.com/search.json",
         params=params,
-        timeout=20,
+        timeout=(10, 60),
     )
 
     response.raise_for_status()

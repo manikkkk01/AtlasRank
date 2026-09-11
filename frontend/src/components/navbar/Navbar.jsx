@@ -118,23 +118,13 @@ const Navbar = () => {
             event.preventDefault();
             handleHomeClick();
           }}
-          className="group flex items-center gap-3"
+          className="group flex items-center"
         >
-          {/* Logo Mark */}
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-[#e5e5e2] text-sm font-black text-[#111111] shadow-lg transition-all duration-300 group-hover:scale-105 group-hover:bg-white">
-            A
-          </div>
-
-          {/* Logo Text */}
-          <div className="hidden sm:block">
-            <span className="text-xl font-bold tracking-tight text-white">
-              Atlas
-            </span>
-
-            <span className="text-xl font-bold tracking-tight text-white/45">
-              Rank
-            </span>
-          </div>
+          <img
+            src="/logo.png"
+            alt="AtlasRank"
+            className="h-10 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
+          />
         </a>
 
         {/* Desktop Navigation */}
@@ -257,6 +247,7 @@ const Navbar = () => {
 
         </div>
       )}
+
     </nav>
   );
 };
